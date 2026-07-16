@@ -1,0 +1,150 @@
+import { DriveFile } from '../types/project';
+
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const FOLDER_ID = import.meta.env.VITE_DRIVE_FOLDER_ID || '';
+const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets';
+
+let tokenClient: any = null;
+
+// Persist access token in sessionStorage to prevent logout on page refresh
+let accessToken: string | null = sessionStorage.getItem('gdrive_access_token');
+
+function setAccessToken(token: string | null): void {
+  accessToken = token;
+  if (token) {
+    sessionStorage.setItem('gdrive_access_token', token);
+  } else {
+    sessionStorage.removeItem('gdrive_access_token');
+  }
+}
+
+declare global {
+  interface Window {
+    google: any;
+    gapi: any;
+  }
+}
+
+export async function initGoogleAuth(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!window.google || !CLIENT_ID) {
+      console.warn('Google Identity Services not loaded or CLIENT_ID missing');
+      resolve();
+      return;
+    }
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: (response: any) => {
+        setAccessToken(response.access_token);
+      },
+    });
+    resolve();
+  });
+}
+
+export async function requestDriveAccess(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!tokenClient) {
+      resolve(false);
+      return;
+    }
+    const originalCallback = tokenClient.callback;
+    tokenClient.callback = (response: any) => {
+      setAccessToken(response.access_token);
+      tokenClient.callback = originalCallback;
+      resolve(true);
+    };
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  });
+}
+
+export function isAuthenticated(): boolean {
+  return !!accessToken;
+}
+
+export function logout(): void {
+  if (accessToken && window.google) {
+    window.google.accounts.oauth2.revoke(accessToken, () => {});
+  }
+  setAccessToken(null);
+}
+
+async function driveApiCall<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+  const url = new URL(`https://www.googleapis.com/drive/v3/${path}`);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const response = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    if (response.status === 401) {
+      logout();
+    }
+    throw new Error(`Drive API error: ${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+export async function listAllFilesRecursive(
+  folderId: string = FOLDER_ID,
+  accumulated: DriveFile[] = []
+): Promise<DriveFile[]> {
+  if (!accessToken) return [];
+
+  try {
+    const data = await driveApiCall<{ files: DriveFile[]; nextPageToken?: string }>('files', {
+      q: `'${folderId}' in parents and trashed = false`,
+      fields: 'files(id,name,mimeType,modifiedTime,size,parents),nextPageToken',
+      pageSize: '1000',
+    });
+
+    const files = data.files || [];
+    const subfolders: DriveFile[] = [];
+    const normalFiles: DriveFile[] = [];
+
+    for (const file of files) {
+      if (file.mimeType === 'application/vnd.google-apps.folder') {
+        subfolders.push(file);
+      } else {
+        normalFiles.push(file);
+        accumulated.push(file);
+      }
+    }
+
+    // Recurse into subfolders
+    await Promise.all(subfolders.map((folder) => listAllFilesRecursive(folder.id, accumulated)));
+    return accumulated;
+  } catch (err) {
+    console.error('Error listing files:', err);
+    return accumulated;
+  }
+}
+
+export async function downloadFileAsArrayBuffer(fileId: string): Promise<ArrayBuffer> {
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!response.ok) throw new Error(`Failed to download file: ${response.status}`);
+  return response.arrayBuffer();
+}
+
+export async function exportGoogleSheetAsXlsx(fileId: string): Promise<ArrayBuffer> {
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!response.ok) throw new Error(`Failed to export sheet: ${response.status}`);
+  return response.arrayBuffer();
+}
+
+export function getFileType(file: DriveFile): 'pdf' | 'excel' | 'gsheet' | 'other' {
+  if (file.mimeType === 'application/pdf') return 'pdf';
+  if (
+    file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.mimeType === 'application/vnd.ms-excel'
+  )
+    return 'excel';
+  if (file.mimeType === 'application/vnd.google-apps.spreadsheet') return 'gsheet';
+  return 'other';
+}
