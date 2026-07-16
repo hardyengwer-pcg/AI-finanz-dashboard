@@ -176,7 +176,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
           projectData.budgetPlan = budgetPlan;
 
           const existing = updatedProjects.findIndex(
-            (p) => (projectData.number !== 'N/A' && p.number === projectData.number) || p.driveFileIds?.includes(pdf.id)
+            (p) => (projectData.number && projectData.number !== 'N/A' && projectData.number.length >= 10 && p.number === projectData.number) || 
+                   p.driveFileIds?.includes(pdf.id)
           );
 
           if (existing >= 0) {
