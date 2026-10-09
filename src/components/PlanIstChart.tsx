@@ -1,5 +1,5 @@
 import React from 'react';
-import { Project } from '../types/project';
+import { Project, isOrderForProject } from '../types/project';
 import { OpenOrder } from '../types/openOrder';
 
 interface Props {
@@ -15,7 +15,7 @@ interface BudgetRow {
 
 export function PlanIstChart({ project, openOrders }: Props) {
   const openOrderTotal = openOrders
-    .filter((o) => o.projectId === project.id || o.projectId === 'unbekannt')
+    .filter((o) => isOrderForProject(o, project))
     .reduce((s, o) => s + o.amount, 0);
 
   const rows: BudgetRow[] = [{ label: 'Gesamtlaufzeit', plan: project.budgetPlan, ist: project.budgetIst }];

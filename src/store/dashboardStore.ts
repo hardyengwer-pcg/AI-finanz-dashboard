@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Project, DriveFile, BookingMatch } from '../types/project';
+import { Project, DriveFile, BookingMatch, isOrderForProject } from '../types/project';
 import { OpenOrder } from '../types/openOrder';
 import {
   listAllFilesRecursive,
@@ -134,9 +134,15 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
         (f.name.toLowerCase().startsWith('antrag') || f.name.toLowerCase().startsWith('projektantrag'))
       );
       const excels = newOrChanged.filter((f) => getFileType(f) === 'excel' || getFileType(f) === 'gsheet');
+      console.log('[Sync] Alle neuen oder geänderten Excel/GSheet-Dateien:', excels.map(f => f.name));
       const openOrderFile = excels.find((f) =>
-        f.name.toLowerCase().includes('offen') || f.name.toLowerCase().includes('auftrag')
+        f.name.toLowerCase().includes('offen') || f.name.toLowerCase().includes('auftrag') || f.name.toLowerCase().includes('bestell')
       );
+      if (openOrderFile) {
+        console.log('[Sync] Datei für offene Aufträge identifiziert:', openOrderFile.name);
+      } else {
+        console.warn('[Sync] Keine neue/geänderte Datei für offene Aufträge identifiziert (Stichworte: "offen", "auftrag", "bestell").');
+      }
       const bookingFiles = excels.filter((f) => f.id !== openOrderFile?.id);
 
       let updatedProjects = forceFullRebuild
@@ -363,13 +369,15 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       // Process open orders file
       if (openOrderFile) {
         try {
+          console.log('[Sync] Lade offene Aufträge aus:', openOrderFile.name);
           const buffer = openOrderFile.mimeType.includes('google-apps')
             ? await exportGoogleSheetAsXlsx(openOrderFile.id)
             : await downloadFileAsArrayBuffer(openOrderFile.id);
           const { orders } = parseOpenOrdersExcel(buffer);
+          console.log(`[Sync] ${orders.length} offene Aufträge erfolgreich aus Excel eingelesen:`, orders.map(o => ({ description: o.description, amount: o.amount, projectId: o.projectId })));
           updatedOpenOrders = orders;
         } catch (err) {
-          console.error('Failed to parse open orders:', err);
+          console.error('[Sync] Fehler beim Parsen der offenen Aufträge:', err);
         }
       }
 
@@ -377,9 +385,16 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
       console.log('[Sync] Zustand aktualisiert mit Projekten:', updatedProjects.map(p => ({ name: p.name, id: p.id, ist: p.budgetIst })));
 
       // Run AI analysis on changed projects (async, non-blocking)
-      if (import.meta.env.VITE_GEMINI_API_KEY) {
-        for (const proj of updatedProjects) {
-          analyzeProjectWithGemini(proj).then((analysis) => {
+      for (const proj of updatedProjects) {
+        const projOrders = updatedOpenOrders.filter((o) => isOrderForProject(o, proj));
+        console.log(`[Sync] Projekt "${proj.name}" (${proj.number}) -> ${projOrders.length} zugeordnete offene Aufträge:`, projOrders.map(o => o.description));
+        
+        if (import.meta.env.VITE_GEMINI_API_KEY) {
+          const enrichedProject = {
+            ...proj,
+            openOrders: projOrders
+          };
+          analyzeProjectWithGemini(enrichedProject).then((analysis) => {
             set((state) => ({
               projects: state.projects.map((p) =>
                 p.id === proj.id ? { ...p, aiAnalysis: analysis } : p
@@ -463,14 +478,15 @@ function getFallbackBudget(projectNumber: string, projectName: string): number {
   const num = projectNumber.replace(/[^a-z0-9]/gi, '').toLowerCase();
   const name = projectName.toLowerCase();
   
-  if (num.includes('03021191') || name.includes('netze')) return 15000;
-  if (num.includes('03014151') || name.includes('brandschutz')) return 100000;
-  if (num.includes('03021189') || name.includes('sicherheitskonzept')) return 50000;
-  if (num.includes('03021180') || name.includes('photovoltaik')) return 100000;
-  if (num.includes('03021238') || name.includes('putzsanierung')) return 150000;
-  if (num.includes('07050101') || name.includes('museumplus') || name.includes('sammlungsmanagement')) return 210000;
-  if (num.includes('06030180') || name.includes('gezeitenmaschine')) return 250000;
-  if (num.includes('03021220') || name.includes('hardwareerneuerung') || name.includes('aps') || name.includes('refresh')) return 30000;
+  if (num.includes('03111122') || name.includes('netze') || name.includes('gelaende')) return 15000;
+  if (num.includes('03111222') || name.includes('brandschutz') || name.includes('sicherheits')) return 100000;
+  if (num.includes('03777999') || name.includes('sicherheitsplan')) return 50000;
+  if (num.includes('03333555') || name.includes('photovoltaik')) return 100000;
+  if (num.includes('03444666') || name.includes('putzsanierung') || name.includes('fassaden')) return 150000;
+  if (num.includes('07888999') || name.includes('eampro') || name.includes('erp') || name.includes('anlagenmanagement')) return 210000;
+  if (num.includes('06777888') || name.includes('kinetik') || name.includes('simulationsanlage')) return 250000;
+  if (num.includes('03999001') || name.includes('modernisierung') || name.includes('client') || name.includes('refresh') || name.includes('hardware')) return 30000;
+  if (num.includes('10333444') || name.includes('polarforschung') || name.includes('arktis')) return 210000;
   
   return 0;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Project } from '../types/project';
+import { Project, isOrderForProject } from '../types/project';
 import { OpenOrder } from '../types/openOrder';
 import { PlanIstChart } from './PlanIstChart';
 import { CostTypeChart } from './CostTypeChart';
@@ -13,19 +13,7 @@ interface Props {
 
 export function ProjectDetail({ project, openOrders }: Props) {
   const openOrdersTotal = openOrders
-    .filter((o) => {
-      const projNum = project.number ? project.number.toLowerCase() : '';
-      const orderProjId = o.projectId ? o.projectId.toLowerCase() : '';
-      
-      if (!projNum || projNum === 'n/a') return false;
-      
-      const coreProjNum = projNum.replace(/^p/i, '').replace(/\.00$/, '');
-      const coreOrderProjId = orderProjId.replace(/^p/i, '').replace(/\.00$/, '');
-      
-      return orderProjId === projNum || 
-             (coreProjNum.length >= 5 && coreOrderProjId === coreProjNum) ||
-             (coreProjNum.length >= 5 && orderProjId.includes(coreProjNum));
-    })
+    .filter((o) => isOrderForProject(o, project))
     .reduce((sum, o) => sum + o.amount, 0);
 
   const totalCommitted = project.budgetIst + openOrdersTotal;
@@ -108,7 +96,7 @@ export function ProjectDetail({ project, openOrders }: Props) {
       )}
 
       {/* Open Orders manager */}
-      <OpenOrdersTable orders={openOrders} projectNumber={project.number} />
+      <OpenOrdersTable orders={openOrders} project={project} />
     </div>
   );
 }

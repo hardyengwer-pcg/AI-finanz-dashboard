@@ -72,3 +72,25 @@ export interface DriveFile {
   size?: string;
   parents?: string[];
 }
+
+export function isOrderForProject(order: OpenOrder, project: Project): boolean {
+  const projId = project.id ? project.id.toLowerCase() : '';
+  const orderProjId = order.projectId ? order.projectId.toLowerCase() : '';
+  
+  if (projId && orderProjId === projId) return true;
+  
+  const projNum = project.number ? project.number.toLowerCase() : '';
+  if (!projNum || projNum === 'n/a') return false;
+  
+  // Clean numbers by removing 'p', all non-alphanumeric chars, and trailing '00'
+  const cleanProjNum = projNum.replace(/^p/i, '').replace(/[^a-z0-9]/g, '').replace(/00$/, '');
+  const cleanOrderProjId = orderProjId.replace(/^p/i, '').replace(/[^a-z0-9]/g, '').replace(/00$/, '');
+  
+  if (cleanProjNum && cleanOrderProjId === cleanProjNum) return true;
+  
+  // Substring match for extra resilience (e.g., project numbers with different formatting or sub-projects)
+  if (cleanProjNum.length >= 4 && cleanOrderProjId.includes(cleanProjNum)) return true;
+  if (cleanOrderProjId.length >= 4 && cleanProjNum.includes(cleanOrderProjId)) return true;
+  
+  return false;
+}

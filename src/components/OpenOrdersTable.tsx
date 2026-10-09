@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { OpenOrder } from '../types/openOrder';
+import { Project, isOrderForProject } from '../types/project';
 import { useDashboardStore } from '../store/dashboardStore';
 
 interface Props {
   orders: OpenOrder[];
-  projectNumber?: string;
+  project: Project;
 }
 
 const STATUS_LABELS: Record<OpenOrder['status'], string> = {
@@ -21,27 +22,13 @@ const STATUS_COLORS: Record<OpenOrder['status'], string> = {
   storniert: '#6b7280',
 };
 
-export function OpenOrdersTable({ orders, projectNumber }: Props) {
+export function OpenOrdersTable({ orders, project }: Props) {
   const { updateOpenOrder, addOpenOrder, deleteOpenOrder } = useDashboardStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newRow, setNewRow] = useState<Partial<OpenOrder> | null>(null);
   const [editData, setEditData] = useState<Partial<OpenOrder>>({});
 
-  const filteredOrders = projectNumber
-    ? orders.filter((o) => {
-        const projNum = projectNumber ? projectNumber.toLowerCase() : '';
-        const orderProjId = o.projectId ? o.projectId.toLowerCase() : '';
-        
-        if (!projNum || projNum === 'n/a') return false;
-        
-        const coreProjNum = projNum.replace(/^p/i, '').replace(/\.00$/, '');
-        const coreOrderProjId = orderProjId.replace(/^p/i, '').replace(/\.00$/, '');
-        
-        return orderProjId === projNum || 
-               (coreProjNum.length >= 5 && coreOrderProjId === coreProjNum) ||
-               (coreProjNum.length >= 5 && orderProjId.includes(coreProjNum));
-      })
-    : orders;
+  const filteredOrders = orders.filter((o) => isOrderForProject(o, project));
 
   const totalOpen = filteredOrders
     .filter((o) => o.status === 'bestellt' || o.status === 'geliefert')
@@ -62,7 +49,7 @@ export function OpenOrdersTable({ orders, projectNumber }: Props) {
 
   const startNewRow = () => {
     setNewRow({
-      projectId: projectNumber || 'unbekannt',
+      projectId: project.number || project.id || 'unbekannt',
       status: 'bestellt',
       orderDate: new Date().toLocaleDateString('de-DE'),
       description: '',

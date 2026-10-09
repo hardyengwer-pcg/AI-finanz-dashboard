@@ -106,15 +106,17 @@ export async function parsePDF(buffer: ArrayBuffer): Promise<ParsedPDF> {
   }
   if (budgetPlan === 0) {
     uncertainties.push('Planbudget konnte nicht extrahiert werden – manuelle Überprüfung erforderlich');
-    console.warn(`[PDF Budget Debug] Budget konnte für PDF "${projectName}" nicht gefunden werden!`);
-    console.warn(`--- Erste 1000 Zeichen des PDF-Textes ---`);
-    console.warn(fullText.substring(0, 1000));
-    console.warn(`--- Zeilen mit Zahlen oder Budget-Stichworten ---`);
-    const lines = fullText.split('\n');
-    for (const line of lines) {
-      const lineLower = line.toLowerCase();
-      if (lineLower.includes('budget') || lineLower.includes('kosten') || lineLower.includes('bedarf') || lineLower.includes('€') || lineLower.includes('eur')) {
-        console.warn(`Relevante Zeile: "${line.trim()}"`);
+    if (fullText.trim().length > 10) {
+      console.warn(`[PDF Budget Debug] Budget konnte für PDF "${projectName}" nicht gefunden werden!`);
+      console.warn(`--- Erste 1000 Zeichen des PDF-Textes ---`);
+      console.warn(fullText.substring(0, 1000));
+      console.warn(`--- Zeilen mit Zahlen oder Budget-Stichworten ---`);
+      const lines = fullText.split('\n');
+      for (const line of lines) {
+        const lineLower = line.toLowerCase();
+        if (lineLower.includes('budget') || lineLower.includes('kosten') || lineLower.includes('bedarf') || lineLower.includes('€') || lineLower.includes('eur')) {
+          console.warn(`Relevante Zeile: "${line.trim()}"`);
+        }
       }
     }
   }

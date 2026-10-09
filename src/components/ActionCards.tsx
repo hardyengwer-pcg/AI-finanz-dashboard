@@ -1,5 +1,5 @@
 import React from 'react';
-import { Project, ActionItem } from '../types/project';
+import { ActionItem } from '../types/project';
 
 interface Props {
   actionItems: ActionItem[];
@@ -11,20 +11,20 @@ export function ActionCards({ actionItems }: Props) {
     actionItems = [
       {
         title: 'Sofort – Diese Woche',
-        deadline: 'bis 04.04.2026 • Projektleitung + Buchhaltung DM',
+        deadline: 'bis 04.04.2026 • Projektleitung + Buchhaltung FTI',
         timeframe: 'sofort',
         items: [
-          'DAR.1450012349 / 0541/91285086 / DM-001-2024: COOR-Einträge anlegen (27.977 €)',
+          'DAR.1450012349 / 0541/91285086 / FTI-001-2024: COOR-Einträge anlegen (27.977 €)',
           'R-2024/1163 / 0875 / 0751: Zahlungsbelege anfordern, Sage nachtragen'
         ]
       },
       {
         title: 'Nächste Woche',
-        deadline: 'bis 11.04.2026 • Projektsteuerung D&S + Buchhaltung',
+        deadline: 'bis 11.04.2026 • Projektsteuerung PM + Buchhaltung',
         timeframe: 'naechste_woche',
         items: [
           '9428169, CM2464, 9135768518: COOR/Sage-Abweichungen aufklären (729 €)',
-          '26-02-015 / 2023000129 / DM25.01: COOR-Einträge anlegen (8.902 €)'
+          '26-02-015 / 2023000129 / FTI25.01: COOR-Einträge anlegen (8.902 €)'
         ]
       },
       {
